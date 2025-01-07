@@ -1,115 +1,81 @@
 import streamlit as st
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import pandas as pd
 import os
 
-# Check if we're running on Streamlit Cloud
-is_streamlit_cloud = os.environ.get('STREAMLIT_RUNTIME') == 'cloud'
+# Basic page config
+st.set_page_config(page_title='Spotify Analysis', page_icon='🎵')
 
-st.set_page_config(page_title='Your Spotify Analysis', page_icon=':musical_note:')
+# Simple title
+st.title('Spotify Analysis')
+st.write('Connect your Spotify account to see your music insights.')
 
-# Get credentials from environment or Streamlit secrets
-if is_streamlit_cloud:
-    CLIENT_ID = st.secrets["CLIENT_ID"]
-    CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
-else:
-    # For local development, try to load from .env file
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-    except ImportError:
-        pass
-    CLIENT_ID = os.environ.get('CLIENT_ID')
-    CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
-
-REDIRECT_URI = 'https://yourspotifyanalysis.streamlit.app'
-
-SCOPE = "user-library-read user-top-read user-read-private user-read-email"
-
+# Initialize session state
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
-st.title('Your Spotify Analysis')
-st.write('Insights about your music listening habits.')
-
-def create_spotify_oauth():
-    return SpotifyOAuth(
+# Get credentials and set up OAuth
+try:
+    if os.environ.get('STREAMLIT_RUNTIME') == 'cloud':
+        st.write("Running on Streamlit Cloud")
+        CLIENT_ID = st.secrets["CLIENT_ID"]
+        CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
+        REDIRECT_URI = 'https://yourspotifyanalysis.streamlit.app'
+    else:
+        st.write("Running locally")
+        CLIENT_ID = os.environ.get('CLIENT_ID')
+        CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
+        REDIRECT_URI = 'http://localhost:8502'
+    
+    st.write(f"Redirect URI: {REDIRECT_URI}")
+    
+    auth_manager = SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-        cache_path='.spotify_cache',
-        show_dialog=True
+        scope="user-top-read",
+        show_dialog=True,
+        cache_path=None
     )
 
+except Exception as e:
+    st.error(f"Setup failed: {e}")
+    st.stop()
+
+# Authentication flow
 if not st.session_state.authenticated:
     if st.button('Connect to Spotify'):
         try:
-            auth_manager = create_spotify_oauth()
-            token_info = auth_manager.get_access_token(as_dict=True)
-            sp = spotipy.Spotify(auth=token_info['access_token'])
+            # Get the auth URL
+            auth_url = auth_manager.get_authorize_url()
+            st.write(f"Auth URL: {auth_url}")
             
-            user = sp.current_user()
-            st.session_state.token_info = token_info
-            st.session_state.authenticated = True
-            st.experimental_rerun()
+            # Redirect to Spotify
+            st.markdown(f'<a href="{auth_url}" target="_self">Click here to authenticate with Spotify</a>', unsafe_allow_html=True)
+            
         except Exception as e:
-            st.error(f"Authentication failed: {str(e)}")
+            st.error(f"Authentication failed: {e}")
 else:
     try:
-        auth_manager = create_spotify_oauth()
-        token_info = auth_manager.get_access_token(as_dict=True)
-        sp = spotipy.Spotify(auth=token_info['access_token'])
+        # Get Spotify client
+        sp = spotipy.Spotify(auth_manager=auth_manager)
         
-        # Verify connection
+        # Test the connection
         user = sp.current_user()
         st.success(f"Connected as: {user['display_name']}")
         
-        with st.spinner('Fetching your top tracks...'):
-            # Get top tracks
-            results = sp.current_user_top_tracks(limit=50)
-            
-            if not results['items']:
-                st.error("No tracks found")
-                st.stop()
-            
-            # Create a list of track information
-            tracks_info = []
-            for track in results['items']:
-                track_info = {
-                    'name': track['name'],
-                    'artist': track['artists'][0]['name'],
-                    'popularity': track['popularity'] / 100,
-                    'duration_min': round(track['duration_ms'] / 60000, 2),
-                    'explicit': 1 if track['explicit'] else 0
-                }
-                tracks_info.append(track_info)
-            
-            if tracks_info:
-                df = pd.DataFrame(tracks_info)
-                
-                # Display track list
-                st.subheader('Your Top Tracks')
-                for idx, track in enumerate(tracks_info, 1):
-                    st.write(f"{idx}. {track['name']} by {track['artist']}")
-                
-                # Create visualization of track popularity
-                st.subheader('Track Popularity')
-                popularity_df = pd.DataFrame({
-                    'Track': [t['name'] for t in tracks_info],
-                    'Popularity': [t['popularity'] for t in tracks_info]
-                }).set_index('Track')
-                
-                st.bar_chart(popularity_df)
-                
-                # Show raw data
-                st.subheader('Track Details')
-                st.dataframe(df)
-                
-            else:
-                st.error("No track data could be retrieved")
-
+        # Show some basic user info
+        st.write("Your Spotify Account Info:")
+        st.write(f"- Email: {user['email']}")
+        st.write(f"- Country: {user['country']}")
+        st.write(f"- Account type: {user['product']}")
+        
     except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
+        st.error(f"Error getting user data: {e}")
         st.session_state.authenticated = False
+
+# Add debug information at the bottom
+st.markdown("---")
+st.write("Debug Information:")
+st.write(f"- Session State: {st.session_state}")
+st.write(f"- Python Version: {os.sys.version}")
