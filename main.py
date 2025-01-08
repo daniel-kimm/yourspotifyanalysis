@@ -1,7 +1,20 @@
 import streamlit as st
+
+# Test section
+st.title("Test App")
+st.write("If you can see this, the app is working!")
+
+# Debug information
+import os
+st.write("Debug Information:")
+st.write(f"Python Version: {os.sys.version}")
+st.write(f"Running on Streamlit Cloud: {os.environ.get('STREAMLIT_RUNTIME') == 'cloud'}")
+
+# Add a separator
+st.markdown("---")
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import os
 
 # Basic page config
 st.set_page_config(page_title='Spotify Analysis', page_icon='🎵')
