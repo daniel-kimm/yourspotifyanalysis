@@ -4,6 +4,7 @@ import streamlit as st
 st.title("Test App")
 st.write("If you can see this, the app is working!")
 
+'''
 # Debug information
 import os
 st.write("Debug Information:")
@@ -86,3 +87,4 @@ else:
     except Exception as e:
         st.error(f"Error getting user data: {e}")
         st.session_state.authenticated = False
+'''
